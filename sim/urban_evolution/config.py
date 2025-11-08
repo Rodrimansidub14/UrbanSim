@@ -24,7 +24,7 @@ AMENITY_BASE = 0.5
 # Velocidad base de viaje (minutos por unidad de distancia implícita)
 BASE_T_TIME = 10.0
 
-# Parámetros de congestión tipo BPR local
+# Parámetros de congestión local
 BPR_A = 0.15
 BPR_B = 4.0
 
@@ -35,7 +35,7 @@ BASE_ROAD_CAP = 300
 INIT_RENT_MEAN = 500.0
 INIT_RENT_SD = 80.0
 
-# Ajuste de precio por desbalance oferta-demanda (SD)
+# Ajuste de precio por desbalance oferta-demanda
 PRICE_ADJ_ALPHA = 0.25
 TARGET_OCCUPANCY = 0.92  # objetivo de ocupación
 
@@ -52,7 +52,7 @@ ZONING_DENSITY_MULT = {0: 1.0, 1: 1.5, 2: 2.2}
 LAMBDA_RENT_BURDEN = 2.0
 MU_TRAVEL = 0.05
 GAMMA_AMENITIES = 1.2
-DELTA_PEERS = 0.5  # atracción/repulsión por pares
+DELTA_PEERS = 0.5
 
 # Probabilidad mensual de considerar mudanza si no hay estrés
 SPONT_MOVE_PROB = 0.01
@@ -63,18 +63,42 @@ RENT_BURDEN_THRESH = {"low": 0.35, "mid": 0.30, "high": 0.25}
 # Oferta inicial de unidades por barrio (asequibles/mercado)
 INIT_UNITS_PER_NEIGH = (120, 80)
 
-# Proporción inicial de asequibles/mercado para nuevas construcciones
-INCL_ZONING_SHARE_AFFORD = 0.3  # se puede modificar por política
+# Proporción inicial de asequibles/mercado en nuevas construcciones
+INCL_ZONING_SHARE_AFFORD = 0.3  # modificable por política
 
 # CBD en el centro de la grilla
 CBD_POS = (GRID_N // 2, GRID_N // 2)
 
+# Carpeta de salidas y snapshots espaciales
+OUTPUTS_DIR = "outputs"
+SAVE_SNAPSHOTS_EVERY = 12  # meses, None para desactivar
+HOLD_PLOTS_OPEN = True  # mantener ventanas abiertas al final
+
 # Políticas/choques programados: (step, tipo, payload)
 POLICY_EVENTS = [
-    # Nueva infraestructura: mejora T0 en anillo intermedio
+    (
+        12,
+        "upzoning_cluster",
+        {"center": (GRID_N // 2, GRID_N // 2), "radius": 2, "new_zoning": 2},
+    ),
     (24, "transport_invest", {"ring": 3, "t0_factor": 0.85, "capacity_factor": 1.2}),
-    # Zonificación inclusiva: reservar % de nuevas unidades como asequibles
+    (
+        30,
+        "voucher_program",
+        {"discount_low": 0.20},
+    ),  # descuento efectivo de renta para low
     (36, "inclusionary_zoning", {"aff_share": 0.5}),
-    # Tope a crecimiento de renta anual (mensual aprox.)
+    (
+        48,
+        "growth_boundary",
+        {"ring_min": 5},
+    ),  # restringe expansión más allá de anillo 5
+    (54, "amenity_investment", {"positions": [(4, 6), (5, 6), (6, 6)], "delta": 0.2}),
     (60, "rent_cap", {"monthly_cap": 0.01}),
+    (72, "tod", {"ring": 2, "amen_boost": 0.15, "t0_factor": 0.9, "upzone_to": 2}),
+    (
+        84,
+        "vacancy_tax",
+        {"penalty": 120.0},
+    ),  # penaliza construir donde hay alta vacancia
 ]
