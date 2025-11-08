@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+*.egg-info/
+.ipynb_checkpoints/
+
+# Data/outputs
+sim/outputs/
+sim/*.csv
+sim/*.png
