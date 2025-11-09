@@ -12,3 +12,4 @@ __pycache__/
 sim/outputs/
 sim/*.csv
 sim/*.png
+/outputs/
