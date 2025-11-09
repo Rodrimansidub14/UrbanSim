@@ -11,7 +11,6 @@ from datetime import datetime
 
 def create_outputs_dir(base_dir: str):
     # Crea carpeta con timestamp para mantener salidas ordenadas
-    # Evita anteponer "sim/" para que no se cree sim/sim/outputs si ejecutas dentro de sim/
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     path = os.path.join(base_dir, f"run-{ts}")
     os.makedirs(path, exist_ok=True)
@@ -109,23 +108,29 @@ class PerfMeter:
 
 
 def save_spatial_maps(model, outdir, step):
-    grids = model.spatial_grids()
-    for key, arr in grids.items():
-        plt.figure(figsize=(4.5, 4))
-        im = plt.imshow(arr.T, origin="lower", aspect="equal")
-        plt.title(f"Mapa {key} - paso {step}")
-        plt.xlabel("i")
-        plt.ylabel("j")
-        plt.colorbar(im, fraction=0.046)
-        fname = f"map_{key}_step{step:03d}.png"
-        plt.tight_layout()
-        plt.savefig(os.path.join(outdir, fname), dpi=150)
-        plt.close()
+    # Guarda mapas sin abrir ventanas emergentes, incluso si plt.ion() está activo
+    was_interactive = plt.isinteractive()
+    if was_interactive:
+        plt.ioff()
+    try:
+        grids = model.spatial_grids()
+        for key, arr in grids.items():
+            fig = plt.figure(figsize=(4.5, 4))
+            im = plt.imshow(arr.T, origin="lower", aspect="equal")
+            plt.title(f"Mapa {key} - paso {step}")
+            plt.xlabel("i")
+            plt.ylabel("j")
+            plt.colorbar(im, fraction=0.046)
+            fname = f"map_{key}_step{step:03d}.png"
+            plt.tight_layout()
+            fig.savefig(os.path.join(outdir, fname), dpi=150)
+            plt.close(fig)
+    finally:
+        if was_interactive:
+            plt.ion()
 
 
 def hold_plots():
     # Mantiene las ventanas abiertas hasta que el usuario las cierre
-    import matplotlib.pyplot as plt
-
     plt.ioff()
     plt.show(block=True)
