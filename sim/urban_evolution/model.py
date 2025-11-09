@@ -18,6 +18,7 @@ class Neighborhood:
     t0: float
     road_capacity: float
     rent: float
+    rent_init: float  # guarda la renta inicial para definir pisos por barrio
     # Estado dinámico
     units_aff: int
     units_mkt: int
@@ -106,6 +107,7 @@ class CityModel:
                     t0=t0,
                     road_capacity=road_cap,
                     rent=rent0,
+                    rent_init=rent0,
                     units_aff=units_aff,
                     units_mkt=units_mkt,
                 )
@@ -144,14 +146,23 @@ class CityModel:
         return nbh.t0 * (1.0 + BPR_A * (v_c**BPR_B))
 
     def _price_adjustment(self, nbh):
-        # Ajuste de precios por ocupación vs objetivo, con posible tope mensual
+        # Ajuste de precios por ocupación vs objetivo con límites de cambio y piso por barrio
         occ_gap = nbh.occupancy - TARGET_OCCUPANCY
-        dP = PRICE_ADJ_ALPHA * occ_gap * nbh.rent
-        new_price = max(50.0, nbh.rent + dP)
-        if self.rent_cap_monthly is not None:
-            cap = 1.0 + self.rent_cap_monthly
-            new_price = min(new_price, nbh.rent * cap)
-        nbh.rent = new_price
+        desired = nbh.rent * (1.0 + PRICE_ADJ_ALPHA * occ_gap)
+
+        # Límite de cambio mensual
+        up_cap = 1.0 + (
+            self.rent_cap_monthly
+            if self.rent_cap_monthly is not None
+            else MAX_RENT_CHANGE
+        )
+        dn_cap = 1.0 - MAX_RENT_CHANGE
+        bounded = min(max(desired, nbh.rent * dn_cap), nbh.rent * up_cap)
+
+        # Piso por barrio proporcional a la renta inicial
+        floor_price = max(50.0, RENT_FLOOR_FRAC * nbh.rent_init)
+
+        nbh.rent = max(floor_price, bounded)
 
     def _decay_units(self, nbh):
         # Obsolescencia leve mensual
@@ -184,11 +195,33 @@ class CityModel:
         choice = self.rng.choice(len(cand), p=probs)
         return cand[choice].idx
 
+    def _maybe_change_income_class(self, hh):
+        # Movilidad simple y pequeña, controlada por parámetros
+        r = self.rng.random()
+        if hh.income_class == "low":
+            if r < MOBILITY_LOW_TO_MID:
+                hh.income_class = "mid"
+                hh.income = INCOME_LEVELS["mid"]
+        elif hh.income_class == "mid":
+            if r < MOBILITY_MID_TO_HIGH:
+                hh.income_class = "high"
+                hh.income = INCOME_LEVELS["high"]
+            elif r < MOBILITY_MID_TO_HIGH + MOBILITY_MID_TO_LOW:
+                hh.income_class = "low"
+                hh.income = INCOME_LEVELS["low"]
+        else:  # high
+            if r < MOBILITY_HIGH_TO_MID:
+                hh.income_class = "mid"
+                hh.income = INCOME_LEVELS["mid"]
+
     def _households_step(self):
         # Limpia recuentos y re-ubica con decisión
         for n in self.neighborhoods:
             n.pop_low = n.pop_mid = n.pop_high = 0
         for hh in self.households:
+            # Posible movilidad de ingreso antes de registrar población
+            self._maybe_change_income_class(hh)
+
             current = self.index_to_node[hh.node]
             if hh.wants_to_move(
                 current.rent, self._compute_travel_time(current), self.rng
