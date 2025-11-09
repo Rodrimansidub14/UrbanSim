@@ -9,11 +9,10 @@ from urban_evolution.analysis import (
     create_outputs_dir,
     hold_plots,
 )
-from urban_evolution.streaming import StreamServer
+from urban_evolution.streaming import StreamServer  # se asume ya existe en tu repo
 from urban_evolution.config import (
     STEPS,
     OUTPUTS_DIR,
-    SAVE_SNAPSHOTS_EVERY,
     HOLD_PLOTS_OPEN,
 )
 
@@ -28,23 +27,24 @@ async def main():
 
     outdir = create_outputs_dir(OUTPUTS_DIR)
 
+    # Mapas de calor solo del inicio y del final
+    save_spatial_maps(model, outdir, model.step)  # paso 0
+
     async def tick_loop():
         for _ in range(STEPS):
             model.step_once()
             plotter.update(model.results_df())
             await streamer.broadcast_tick()
-            if (
-                SAVE_SNAPSHOTS_EVERY is not None
-                and model.step % SAVE_SNAPSHOTS_EVERY == 0
-            ):
-                save_spatial_maps(model, outdir, model.step)
 
+        # Guardar mapas del final
+        save_spatial_maps(model, outdir, model.step)
+
+        # Guardar CSV y gráficas finales; además mostrarlas en pantalla
         df = model.results_df()
         print(summarize(df))
-        # Guardar resultados y gráficas finales
         df.to_csv(os.path.join(outdir, "results.csv"), index=False)
         plot_time_series(
-            df, show=False, savepath=os.path.join(outdir, "time_series.png")
+            df, show=True, savepath=os.path.join(outdir, "time_series.png")
         )
 
         if HOLD_PLOTS_OPEN:
