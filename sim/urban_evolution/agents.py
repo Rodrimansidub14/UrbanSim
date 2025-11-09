@@ -6,6 +6,8 @@ from .config import (
     MU_TRAVEL,
     GAMMA_AMENITIES,
     DELTA_PEERS,
+    BUILD_MIN_PROFIT,
+    BUILD_OCC_THRESHOLD,
 )
 
 
@@ -57,28 +59,41 @@ class Developer:
         self.build_rate = build_rate
 
     def choose_and_build(self, city, rng):
-        # Evalúa barrios con alta ocupación y precio > costo
-        scores = []
+        # Construye solo si hay alta ocupación y margen suficiente
+        candidates = []
         for n in city.neighborhoods:
+            if not n.growth_allowed:
+                continue
+            cap_mult = n.zoning_cap_mult
+            if n.total_units >= n.base_capacity * cap_mult:
+                continue
+
             price = n.rent
             occ = n.occupancy
-            cap_mult = n.zoning_cap_mult
-            can_expand = (
-                n.total_units < n.base_capacity * cap_mult
-            ) and n.growth_allowed
-            if can_expand:
-                profit = max(0.0, price - self.unit_cost)
-                # Impuesto a la vacancia: desincentiva construir donde hay alta vacancia
-                vac_penalty = city.vacancy_penalty * max(0.0, 1.0 - occ)
-                score = (profit - vac_penalty) * (occ - 0.85)
-                scores.append((score, n))
-        if not scores:
+            margin = price - self.unit_cost
+
+            # Filtros de racionalidad para evitar sobreoferta crónica
+            if margin < BUILD_MIN_PROFIT:
+                continue
+            if occ < BUILD_OCC_THRESHOLD:
+                continue
+
+            # Impuesto a la vacancia: desincentiva construir donde hay alta vacancia
+            vac_penalty = city.vacancy_penalty * max(0.0, 1.0 - occ)
+            score = (margin - vac_penalty) * occ
+            candidates.append((score, n))
+
+        if not candidates:
             return
 
-        scores.sort(key=lambda x: x[0], reverse=True)
-        best = scores[0][1]
+        # Selecciona el mejor candidato
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        best = candidates[0][1]
+        if candidates[0][0] <= 0:
+            return  # evita construir si el puntaje no es positivo
+
         # Construye unidades respetando zonificación inclusiva
         aff_share = city.current_affordable_share
-        n_aff = int(self.build_rate * aff_share)
-        n_mkt = self.build_rate - n_aff
+        n_aff = int(round(self.build_rate * aff_share))
+        n_mkt = int(self.build_rate - n_aff)
         best.add_units(n_aff, n_mkt)
