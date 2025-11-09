@@ -35,14 +35,22 @@ BASE_ROAD_CAP = 300
 INIT_RENT_MEAN = 500.0
 INIT_RENT_SD = 80.0
 
-# Ajuste de precio por desbalance oferta-demanda
+# Ajuste de precio por desbalance oferta-demanda (antes de acotar cambios)
 PRICE_ADJ_ALPHA = 0.25
 TARGET_OCCUPANCY = 0.92  # objetivo de ocupación
 
+# Límites de ajuste de renta para evitar colapso o saltos irreales
+MAX_RENT_CHANGE = 0.03  # cambio máximo mensual (3% arriba/abajo)
+RENT_FLOOR_FRAC = 0.60  # piso de renta por barrio: 60% de su renta inicial
+
 # Costos de construcción y obsolescencia
 DEV_UNIT_COST = 350.0
-DEV_BUILD_RATE = 30  # unidades por decisión
+DEV_BUILD_RATE = 30  # unidades por decisión de cada desarrollador
 UNIT_DECAY_RATE = 0.002  # fracción mensual
+
+# Criterios para habilitar nueva construcción (evitar sobreoferta persistente)
+BUILD_OCC_THRESHOLD = 0.90  # solo se construye con ocupación alta
+BUILD_MIN_PROFIT = 40.0  # margen mínimo (renta - costo) para construir
 
 # Zonificación: 0=estricta, 1=mixta, 2=liberal (afecta densidad tope)
 ZONING_PROBS = [0.3, 0.5, 0.2]
@@ -61,7 +69,8 @@ SPONT_MOVE_PROB = 0.01
 RENT_BURDEN_THRESH = {"low": 0.35, "mid": 0.30, "high": 0.25}
 
 # Oferta inicial de unidades por barrio (asequibles/mercado)
-INIT_UNITS_PER_NEIGH = (120, 80)
+# Nota: bajamos el stock inicial para evitar arrancar con sobreoferta extrema.
+INIT_UNITS_PER_NEIGH = (30, 10)
 
 # Proporción inicial de asequibles/mercado en nuevas construcciones
 INCL_ZONING_SHARE_AFFORD = 0.3  # modificable por política
@@ -69,9 +78,14 @@ INCL_ZONING_SHARE_AFFORD = 0.3  # modificable por política
 # CBD en el centro de la grilla
 CBD_POS = (GRID_N // 2, GRID_N // 2)
 
+# Movilidad entre clases de ingreso (pequeña, para evitar series planas)
+MOBILITY_LOW_TO_MID = 0.002
+MOBILITY_MID_TO_HIGH = 0.0015
+MOBILITY_MID_TO_LOW = 0.0010
+MOBILITY_HIGH_TO_MID = 0.0015
+
 # Carpeta de salidas y snapshots espaciales
 OUTPUTS_DIR = "outputs"
-SAVE_SNAPSHOTS_EVERY = 12  # meses, None para desactivar
 HOLD_PLOTS_OPEN = True  # mantener ventanas abiertas al final
 
 # Políticas/choques programados: (step, tipo, payload)
@@ -82,23 +96,11 @@ POLICY_EVENTS = [
         {"center": (GRID_N // 2, GRID_N // 2), "radius": 2, "new_zoning": 2},
     ),
     (24, "transport_invest", {"ring": 3, "t0_factor": 0.85, "capacity_factor": 1.2}),
-    (
-        30,
-        "voucher_program",
-        {"discount_low": 0.20},
-    ),  # descuento efectivo de renta para low
+    (30, "voucher_program", {"discount_low": 0.20}),  # vales para low-income
     (36, "inclusionary_zoning", {"aff_share": 0.5}),
-    (
-        48,
-        "growth_boundary",
-        {"ring_min": 5},
-    ),  # restringe expansión más allá de anillo 5
+    (48, "growth_boundary", {"ring_min": 5}),  # restringe expansión
     (54, "amenity_investment", {"positions": [(4, 6), (5, 6), (6, 6)], "delta": 0.2}),
     (60, "rent_cap", {"monthly_cap": 0.01}),
     (72, "tod", {"ring": 2, "amen_boost": 0.15, "t0_factor": 0.9, "upzone_to": 2}),
-    (
-        84,
-        "vacancy_tax",
-        {"penalty": 120.0},
-    ),  # penaliza construir donde hay alta vacancia
+    (84, "vacancy_tax", {"penalty": 120.0}),  # penaliza construir con vacancia
 ]
