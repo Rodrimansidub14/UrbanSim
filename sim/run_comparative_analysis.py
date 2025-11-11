@@ -9,7 +9,7 @@ from pathlib import Path
 def run_analysis():
     """Ejecutar análisis comparativo de escenarios disponibles"""
     
-    print("\n🔬 ANÁLISIS COMPARATIVO DE ESCENARIOS URBANSIM")
+    print("\nANÁLISIS COMPARATIVO DE ESCENARIOS URBANSIM")
     print("=" * 70)
     
     # Crear analizador
@@ -25,7 +25,7 @@ def run_analysis():
     ]
     
     # Cargar escenarios disponibles
-    print("\n📂 Buscando y cargando escenarios...\n")
+    print("\nBuscando y cargando escenarios...\n")
     loaded_scenarios = []
     
     for csv_path, name, description in scenarios_config:
@@ -35,25 +35,25 @@ def run_analysis():
                 analyzer.load_scenario(str(path), name)
                 loaded_scenarios.append((name, description))
             except Exception as e:
-                print(f"⚠️  Error cargando {name}: {e}")
+                print(f"Error cargando {name}: {e}")
         else:
-            print(f"⚠️  Archivo no encontrado: {csv_path}")
+            print(f"Archivo no encontrado: {csv_path}")
     
     if len(loaded_scenarios) < 2:
-        print("\n❌ Error: Se necesitan al menos 2 escenarios para comparar")
+        print("\nError: Se necesitan al menos 2 escenarios para comparar")
         return
     
-    print(f"\n✅ {len(loaded_scenarios)} escenarios cargados:")
+    print(f"\n{len(loaded_scenarios)} escenarios cargados:")
     for name, desc in loaded_scenarios:
         print(f"   • {name}: {desc}")
     
     # Generar análisis
-    print("\n🔍 Generando análisis comparativo...\n")
+    print("\nGenerando análisis comparativo...\n")
     df_summary, df_targets = analyzer.generate_all_analyses()
     
     # Mostrar resumen ejecutivo
     print("\n" + "=" * 70)
-    print("📊 RESUMEN EJECUTIVO")
+    print("RESUMEN EJECUTIVO")
     print("=" * 70 + "\n")
     
     print("TABLA 1: Indicadores Finales por Escenario")
@@ -66,7 +66,7 @@ def run_analysis():
     
     # Análisis de mejor escenario
     print("\n\n" + "=" * 70)
-    print("🏆 ANÁLISIS DE MEJORES RESULTADOS")
+    print("ANÁLISIS DE MEJORES RESULTADOS")
     print("=" * 70 + "\n")
     
     # Evaluar cada métrica
@@ -82,10 +82,10 @@ def run_analysis():
         print(f"✓ {metric}: {best_scenario}")
     
     print("\n" + "=" * 70)
-    print("✅ ANÁLISIS COMPLETADO CON ÉXITO")
+    print("ANÁLISIS COMPLETADO CON ÉXITO")
     print("=" * 70)
-    print(f"\n📁 Resultados guardados en: outputs/comparative_analysis/")
-    print("\n💡 Abre los archivos .html en tu navegador para ver las gráficas interactivas")
+    print(f"\nResultados guardados en: outputs/comparative_analysis/")
+    print("\nAbre los archivos .html en tu navegador para ver las gráficas interactivas")
     print("\n")
 
 
@@ -93,6 +93,6 @@ if __name__ == "__main__":
     try:
         run_analysis()
     except Exception as e:
-        print(f"\n❌ Error durante el análisis: {e}")
+        print(f"\nError durante el análisis: {e}")
         import traceback
         traceback.print_exc()

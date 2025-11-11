@@ -1,6 +1,6 @@
 """
-StreamServer - WebSocket server for broadcasting simulation state
-and receiving control commands in real-time.
+StreamServer - Servidor WebSocket para transmitir el estado de la simulación
+y recibir comandos de control en tiempo real.
 """
 import asyncio
 import json
@@ -12,8 +12,8 @@ import numpy as np
 
 class StreamServer:
     """
-    WebSocket server that broadcasts simulation state to connected clients
-    and processes incoming control commands.
+    Servidor WebSocket que transmite el estado de la simulación a los clientes conectados
+    y procesa los comandos de control entrantes.
     """
 
     def __init__(self, model, host="localhost", port=8765):
@@ -25,53 +25,53 @@ class StreamServer:
         self.running = False
 
     async def start(self):
-        """Start the WebSocket server"""
+        """Iniciar el servidor WebSocket"""
         self.server = await websockets.serve(
             self.handle_client, self.host, self.port
         )
         self.running = True
-        print(f"🌐 StreamServer listening on ws://{self.host}:{self.port}")
+        print(f"Servidor StreamServer escuchando en ws://{self.host}:{self.port}")
 
     async def stop(self):
-        """Stop the WebSocket server"""
+        """Detener el servidor WebSocket"""
         self.running = False
         if self.server:
             self.server.close()
             await self.server.wait_closed()
-        # Close all client connections
+        # Cerrar todas las conexiones de clientes
         if self.clients:
             await asyncio.gather(
                 *[client.close() for client in self.clients],
                 return_exceptions=True
             )
-        print("🛑 StreamServer stopped")
+        print("Servidor StreamServer detenido")
 
     async def handle_client(self, websocket):
-        """Handle a new client connection"""
+        """Manejar una nueva conexión de cliente"""
         self.clients.add(websocket)
         client_id = id(websocket)
-        print(f"✅ Client {client_id} connected (total: {len(self.clients)})")
+        print(f"Cliente {client_id} conectado (total: {len(self.clients)})")
 
         try:
-            # Send initial state
+            # Enviar estado inicial
             await self.send_initial_state(websocket)
 
-            # Listen for incoming messages
+            # Escuchar mensajes entrantes
             async for message in websocket:
                 await self.process_command(message, websocket)
 
         except websockets.exceptions.ConnectionClosed:
-            print(f"❌ Client {client_id} disconnected")
+            print(f"Cliente {client_id} desconectado")
         finally:
             self.clients.discard(websocket)
 
     async def send_initial_state(self, websocket):
-        """Send current simulation state to a newly connected client"""
+        """Enviar el estado actual de la simulación a un cliente recién conectado"""
         state = self._build_state_message()
         await websocket.send(json.dumps(state))
 
     async def process_command(self, message: str, websocket):
-        """Process incoming control commands from clients"""
+        """Procesar comandos de control recibidos desde los clientes"""
         try:
             cmd = json.loads(message)
             command_type = cmd.get("command")
@@ -82,7 +82,7 @@ class StreamServer:
                 self._update_parameter(param, value)
                 response = {
                     "status": "ok",
-                    "message": f"Updated {param} to {value}"
+                    "message": f"Parámetro actualizado: {param} = {value}"
                 }
 
             elif command_type == "set_policy":
@@ -91,15 +91,15 @@ class StreamServer:
                 self._apply_policy(policy, payload)
                 response = {
                     "status": "ok",
-                    "message": f"Applied policy: {policy}"
+                    "message": f"Política aplicada: {policy}"
                 }
 
             elif command_type == "pause":
-                # This would require coordination with the simulation loop
-                response = {"status": "ok", "message": "Pause requested"}
+                # Requiere coordinación con el bucle de simulación
+                response = {"status": "ok", "message": "Pausa solicitada"}
 
             elif command_type == "resume":
-                response = {"status": "ok", "message": "Resume requested"}
+                response = {"status": "ok", "message": "Reanudación solicitada"}
 
             elif command_type == "get_state":
                 response = self._build_state_message()
@@ -107,20 +107,20 @@ class StreamServer:
             else:
                 response = {
                     "status": "error",
-                    "message": f"Unknown command: {command_type}"
+                    "message": f"Comando desconocido: {command_type}"
                 }
 
             await websocket.send(json.dumps(response))
 
         except json.JSONDecodeError as e:
-            error_msg = {"status": "error", "message": f"Invalid JSON: {str(e)}"}
+            error_msg = {"status": "error", "message": f"JSON inválido: {str(e)}"}
             await websocket.send(json.dumps(error_msg))
         except Exception as e:
             error_msg = {"status": "error", "message": f"Error: {str(e)}"}
             await websocket.send(json.dumps(error_msg))
 
     def _update_parameter(self, param: str, value):
-        """Update a model parameter dynamically"""
+        """Actualizar un parámetro del modelo dinámicamente"""
         if param == "rent_cap":
             self.model.rent_cap_monthly = float(value)
         elif param == "aff_share":
@@ -130,16 +130,16 @@ class StreamServer:
         elif param == "vacancy_penalty":
             self.model.vacancy_penalty = float(value)
         else:
-            print(f"⚠️  Unknown parameter: {param}")
+            print(f"Parámetro desconocido: {param}")
 
     def _apply_policy(self, policy: str, payload: dict):
-        """Apply a policy to the model"""
+        """Aplicar una política al modelo"""
         from . import policies as policies_mod
         policies_mod.apply_policy(self.model, policy, payload)
 
     def _build_state_message(self) -> dict:
-        """Build a complete state message with KPIs and spatial data"""
-        # Get latest metrics
+        """Construir un mensaje completo de estado con KPIs y datos espaciales"""
+        # Obtener las métricas más recientes
         if self.model.records:
             latest = self.model.records[-1]
         else:
@@ -156,10 +156,10 @@ class StreamServer:
                 "total_units": 0,
             }
 
-        # Get spatial grids
+        # Obtener las cuadrículas espaciales
         grids = self.model.spatial_grids()
 
-        # Convert numpy arrays to lists for JSON serialization
+        # Convertir arreglos de numpy a listas para serialización JSON
         spatial_data = {
             key: arr.tolist() if isinstance(arr, np.ndarray) else arr
             for key, arr in grids.items()
@@ -196,21 +196,21 @@ class StreamServer:
         }
 
     async def broadcast_tick(self):
-        """Broadcast current state to all connected clients"""
+        """Transmitir el estado actual a todos los clientes conectados"""
         if not self.clients:
             return
 
         message = self._build_state_message()
         message_str = json.dumps(message)
 
-        # Send to all clients concurrently
+        # Enviar a todos los clientes de forma concurrente
         await asyncio.gather(
             *[client.send(message_str) for client in self.clients],
             return_exceptions=True
         )
 
     async def broadcast_message(self, message: dict):
-        """Broadcast a custom message to all clients"""
+        """Transmitir un mensaje personalizado a todos los clientes"""
         if not self.clients:
             return
 
