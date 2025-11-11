@@ -27,12 +27,6 @@ ENV/
 .ipynb_checkpoints/
 *.ipynb
 
-# Data/outputs
-outputs/
-*.csv
-*.png
-*.log
-run-*/
 
 # OS
 .DS_Store
