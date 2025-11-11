@@ -39,6 +39,14 @@ class LeftPanel(QWidget):
         from .network_panel import NetworkPanel
         self.network_widget = NetworkPanel()
         self.tabs.addTab(self.network_widget, "🕸️ Red")
+
+        self._type_changed = False
+        self.HEATMAP_ALIASES = {
+            'rent': ('rent', 'avg_rent'),
+            'population': ('population', 'pop', 'people'),
+            'low_income': ('low_income', 'low_income_share', 'share_low_income', 'discount_low'),
+            'gentrification': ('gentrification', 'gentr', 'gentr_index', 'gentr_dispersion'),
+        }
         
     def create_kpi_plots(self):
         """Create KPI time series plots"""
@@ -112,16 +120,24 @@ class LeftPanel(QWidget):
         
         return widget
     
+    def _pick_spatial_array(self, spatial: dict, kind: str):
+        """Return first matching array for the selected kind (considering aliases)."""
+        for key in self.HEATMAP_ALIASES.get(kind, (kind,)):
+            if key in spatial:
+                return np.asarray(spatial[key])
+        return None
+
     def on_heatmap_type_changed(self, text):
-        """Manejar cambio de selección de tipo de mapa de calor"""
         mapping = {
             'Renta': 'rent',
             'Población': 'population',
-            'Bajos Ingresos': 'low_income',
+            'Bajos Ingresos': 'discount_low',
             'Gentrificación': 'gentrification'
         }
-        self.current_heatmap_type = mapping.get(text, 'rent')
-        
+        new_type = mapping.get(text, 'rent')
+        self._type_changed = (new_type != getattr(self, 'current_heatmap_type', None))
+        self.current_heatmap_type = new_type
+
         # Re-render with last state if available
         if self.last_state:
             self.update_heatmap(self.last_state)
@@ -154,27 +170,25 @@ class LeftPanel(QWidget):
         self.network_widget.update_network(state)
     
     def update_heatmap(self, state: dict):
-        """Update heatmap based on selected type"""
-        if 'spatial' not in state:
+        """Update heatmap based on selected type with aliases and safe fallbacks."""
+        spatial = state.get('spatial')
+        if not spatial:
             return
-        
-        spatial = state['spatial']
-        
-        # Get the appropriate data based on selection
-        if self.current_heatmap_type == 'rent' and 'rent' in spatial:
-            data = np.array(spatial['rent'])
-        elif self.current_heatmap_type == 'population' and 'population' in spatial:
-            data = np.array(spatial['population'])
-        elif self.current_heatmap_type == 'low_income' and 'low_income' in spatial:
-            data = np.array(spatial['low_income'])
-        elif self.current_heatmap_type == 'gentrification' and 'gentrification' in spatial:
-            data = np.array(spatial['gentrification'])
-        else:
+
+        kind = getattr(self, 'current_heatmap_type', 'rent')
+        data = self._pick_spatial_array(spatial, kind)
+
+        if data is None:
+            # Helpful debug so this doesn't fail silently
+            print(f"[heatmap] Missing data for '{kind}'. Available keys: {list(spatial.keys())}")
             return
-        
-        # Update image with proper scaling
-        if data.size > 0:
-            self.image_view.setImage(data.T, autoRange=False, autoLevels=True)
+
+        # Force a fresh view on type changes; keep incremental updates snappy otherwise
+        auto_range = self._type_changed
+        self._type_changed = False
+
+        # If your sim mutates arrays in-place, .copy() guarantees a redraw
+        self.image_view.setImage(data.T.copy(), autoRange=auto_range, autoLevels=True)
             
     def clear_plots(self):
         """Clear all plot data"""
