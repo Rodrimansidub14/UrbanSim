@@ -1,3 +1,4 @@
+# Dependencias base de urban_evolution
 numpy
 pandas
 matplotlib
@@ -6,11 +7,15 @@ networkx
 websockets
 psutil
 
-# Phase 1: PyQtGraph Real-Time GUI
-pyqtgraph>=0.13.0
-PyQt5>=5.15.0
-PyQtWebEngine>=5.15.0
+# Dependencias para PyQt5 (GUI)
+PyQt5
+PyQtWebEngine
+pyqtgraph
 
-# Phase 3: Dash Web Dashboard
-dash>=2.14.0
-plotly>=5.17.0
+# Dependencias para Dash (dashboard web integrado)
+dash
+plotly
+kaleido
+
+# Utilidades adicionales
+python-dateutil
