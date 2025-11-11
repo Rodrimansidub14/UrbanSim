@@ -85,7 +85,7 @@ MOBILITY_MID_TO_LOW = 0.0010
 MOBILITY_HIGH_TO_MID = 0.0015
 
 # Carpeta de salidas y snapshots espaciales
-OUTPUTS_DIR = "outputs"
+OUTPUTS_DIR = "run_sim"
 HOLD_PLOTS_OPEN = True  # mantener ventanas abiertas al final
 
 # Políticas/choques programados: (step, tipo, payload)

@@ -111,8 +111,10 @@ class SimulationEngine(QObject):
         if self.thread:
             self.thread.join(timeout=2)
         
-        # Save results to CSV when stopping
-        self.save_results()
+        # Save results to CSV and export visualizations when stopping
+        run_dir = self.save_results()
+        if run_dir:
+            self.export_all_visualizations(run_dir)
         print("🛑 Simulation engine stopped")
         
     def pause(self):
@@ -149,16 +151,21 @@ class SimulationEngine(QObject):
         """Save simulation results to CSV file"""
         try:
             # Create outputs directory if it doesn't exist
-            outputs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'outputs')
+            outputs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'run_sim')
             os.makedirs(outputs_dir, exist_ok=True)
             
+            # Create timestamped subdirectory
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            run_dir = os.path.join(outputs_dir, f"unified-run-{timestamp}")
+            os.makedirs(run_dir, exist_ok=True)
+            
             # Define the output file path
-            output_file = os.path.join(outputs_dir, 'rt_results.csv')
+            output_file = os.path.join(run_dir, 'results.csv')
             
             # Check if model has records
             if not self.model.records:
                 print("⚠️  No simulation data to save")
-                return
+                return run_dir
             
             # Write records to CSV
             with open(output_file, 'w', newline='', encoding='utf-8') as f:
@@ -173,7 +180,115 @@ class SimulationEngine(QObject):
             print(f"💾 Results saved to: {output_file}")
             print(f"📊 Total steps recorded: {len(self.model.records)}")
             
+            return run_dir
+            
         except Exception as e:
             print(f"❌ Error saving results: {e}")
             import traceback
             traceback.print_exc()
+            return None
+    
+    def export_all_visualizations(self, run_dir=None):
+        """Export all graphs and visualizations to files"""
+        try:
+            # Create run directory if not provided
+            if run_dir is None:
+                outputs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'run_sim')
+                os.makedirs(outputs_dir, exist_ok=True)
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                run_dir = os.path.join(outputs_dir, f"unified-run-{timestamp}")
+                os.makedirs(run_dir, exist_ok=True)
+            
+            # Import matplotlib for plotting
+            import matplotlib.pyplot as plt
+            from urban_evolution.analysis import plot_time_series, save_spatial_maps
+            
+            # Check if we have data
+            if not self.model.records:
+                print("⚠️  No data to export")
+                return run_dir
+            
+            # Convert records to DataFrame
+            import pandas as pd
+            df = pd.DataFrame(self.model.records)
+            
+            # Save time series plots
+            plot_time_series(
+                df, 
+                show=False, 
+                savepath=os.path.join(run_dir, "time_series.png")
+            )
+            print(f"📈 Time series plots saved")
+            
+            # Save spatial maps (current state)
+            save_spatial_maps(self.model, run_dir, self.model.step)
+            print(f"🗺️  Spatial maps saved")
+            
+            # Export network graph if available
+            self.export_network_graph(run_dir)
+            
+            print(f"✅ All visualizations exported to: {run_dir}")
+            return run_dir
+            
+        except Exception as e:
+            print(f"❌ Error exporting visualizations: {e}")
+            import traceback
+            traceback.print_exc()
+            return run_dir
+    
+    def export_network_graph(self, run_dir):
+        """Export network graph visualization"""
+        try:
+            import matplotlib.pyplot as plt
+            import networkx as nx
+            
+            # Get the city graph from the model
+            if not hasattr(self.model, 'city_graph') or self.model.city_graph is None:
+                print("⚠️  No network graph available to export")
+                return
+            
+            G = self.model.city_graph
+            
+            # Create figure
+            fig, ax = plt.subplots(figsize=(12, 12))
+            
+            # Get positions (spatial layout based on grid coordinates)
+            pos = {}
+            for node in G.nodes():
+                i, j = node
+                pos[node] = (i, j)
+            
+            # Draw network
+            nx.draw_networkx_edges(G, pos, alpha=0.3, ax=ax)
+            
+            # Color nodes by some metric if available
+            node_colors = []
+            for node in G.nodes():
+                if 'population' in G.nodes[node]:
+                    node_colors.append(G.nodes[node]['population'])
+                else:
+                    node_colors.append(1)
+            
+            nx.draw_networkx_nodes(
+                G, pos, 
+                node_color=node_colors,
+                node_size=100,
+                cmap=plt.cm.viridis,
+                ax=ax
+            )
+            
+            ax.set_title(f"City Network - Step {self.model.step}")
+            ax.set_xlabel("Grid X")
+            ax.set_ylabel("Grid Y")
+            ax.set_aspect('equal')
+            
+            # Save figure
+            network_file = os.path.join(run_dir, f"network_graph_step{self.model.step}.png")
+            plt.tight_layout()
+            plt.savefig(network_file, dpi=150, bbox_inches='tight')
+            plt.close(fig)
+            
+            print(f"🕸️  Network graph saved: {network_file}")
+            
+        except Exception as e:
+            print(f"⚠️  Could not export network graph: {e}")

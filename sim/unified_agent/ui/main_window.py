@@ -96,6 +96,12 @@ class MainWindow(QMainWindow):
         reset_btn.clicked.connect(self.reset_view)
         layout.addWidget(reset_btn)
         
+        # Botón Exportar
+        export_btn = QPushButton("💾 Exportar Gráficas")
+        export_btn.clicked.connect(self.export_visualizations)
+        export_btn.setToolTip("Guardar todas las gráficas y grafos actuales")
+        layout.addWidget(export_btn)
+        
         # Control de velocidad
         layout.addWidget(QLabel("Velocidad:"))
         self.speed_slider = QSlider(Qt.Horizontal)
@@ -279,6 +285,54 @@ class MainWindow(QMainWindow):
         mins = total_elapsed // 60
         secs = total_elapsed % 60
         self.elapsed_label.setText(f"Time: {mins}:{secs:02d}")
+    
+    def export_visualizations(self):
+        """Export all current visualizations to files"""
+        from PyQt5.QtWidgets import QMessageBox
+        try:
+            print("📸 Exporting visualizations...")
+            
+            # Pause simulation during export
+            was_paused = self.engine.paused
+            if not was_paused:
+                self.engine.pause()
+            
+            # Export from engine
+            run_dir = self.engine.export_all_visualizations()
+            
+            # Resume if it was running
+            if not was_paused:
+                self.engine.resume()
+            
+            if run_dir:
+                QMessageBox.information(
+                    self,
+                    "✅ Exportación Exitosa",
+                    f"Todas las gráficas y grafos han sido guardados en:\n\n{run_dir}\n\n"
+                    f"Archivos exportados:\n"
+                    f"• results.csv - Datos de la simulación\n"
+                    f"• time_series.png - Series temporales\n"
+                    f"• time_series_housing.png - Gráficas de vivienda\n"
+                    f"• map_*.png - Mapas espaciales\n"
+                    f"• network_graph_*.png - Grafo de red"
+                )
+                print(f"✅ Visualizations exported to: {run_dir}")
+            else:
+                QMessageBox.warning(
+                    self,
+                    "⚠️ Exportación Incompleta",
+                    "La exportación se completó parcialmente. Revisa la consola para más detalles."
+                )
+                
+        except Exception as e:
+            print(f"❌ Error during export: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(
+                self,
+                "❌ Error de Exportación",
+                f"Ocurrió un error al exportar las visualizaciones:\n\n{str(e)}"
+            )
         
     def closeEvent(self, event):
         """Handle window close"""
