@@ -54,9 +54,26 @@ class Neighborhood:
 
 class CityModel:
     # Modelo híbrido con programación por ticks
-    def __init__(self, rng=None):
-        self.rng = np.random.default_rng(RNG_SEED if rng is None else rng.integers(1e9))
-        self.N = GRID_N
+    def __init__(self, rng=None, grid_size=None, n_households=None, seed=None):
+        """
+        Initialize CityModel with optional configuration parameters
+        
+        Args:
+            rng: Random number generator (deprecated, use seed instead)
+            grid_size: Size of NxN grid (default: from config.GRID_N)
+            n_households: Number of households (default: from config.N_HOUSEHOLDS)
+            seed: Random seed (default: from config.RNG_SEED)
+        """
+        # Use custom seed if provided, otherwise fall back to config
+        actual_seed = seed if seed is not None else RNG_SEED
+        self.rng = np.random.default_rng(actual_seed if rng is None else rng.integers(1e9))
+        
+        # Use custom grid size if provided, otherwise fall back to config
+        self.N = grid_size if grid_size is not None else GRID_N
+        
+        # Store n_households for later use (will be used in _init_households)
+        self.n_households_config = n_households if n_households is not None else N_HOUSEHOLDS
+        
         self.step = 0
         self.neighborhoods = []
         self.index_to_node = {}
@@ -66,7 +83,7 @@ class CityModel:
             for i in range(8)
         ]
         self.current_affordable_share = INCL_ZONING_SHARE_AFFORD
-        self.rent_cap_monthly = None
+        self.rent_cap_monthly = 0.99  # Default: no cap (high value = disabled)
         self.voucher_discount = 0.0
         self.vacancy_penalty = 0.0
 
@@ -122,7 +139,7 @@ class CityModel:
         # Distribuye hogares por ingresos y barrios
         id_counter = 0
         for cls, share in INCOME_SHARES.items():
-            n_cls = int(N_HOUSEHOLDS * share)
+            n_cls = int(self.n_households_config * share)  # Use configured value
             for _ in range(n_cls):
                 node = self._random_node()
                 hh = Household(id_counter, cls, node.idx)
@@ -151,11 +168,13 @@ class CityModel:
         desired = nbh.rent * (1.0 + PRICE_ADJ_ALPHA * occ_gap)
 
         # Límite de cambio mensual
-        up_cap = 1.0 + (
-            self.rent_cap_monthly
-            if self.rent_cap_monthly is not None
-            else MAX_RENT_CHANGE
-        )
+        # Use rent_cap if set and lower than MAX_RENT_CHANGE, otherwise use MAX_RENT_CHANGE
+        if self.rent_cap_monthly is not None and self.rent_cap_monthly < MAX_RENT_CHANGE:
+            cap_to_use = self.rent_cap_monthly
+        else:
+            cap_to_use = MAX_RENT_CHANGE
+            
+        up_cap = 1.0 + cap_to_use
         dn_cap = 1.0 - MAX_RENT_CHANGE
         bounded = min(max(desired, nbh.rent * dn_cap), nbh.rent * up_cap)
 
