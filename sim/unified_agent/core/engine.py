@@ -1,6 +1,6 @@
 """
-Core simulation engine that integrates CityModel with StreamServer
-Runs in a background thread with async event loop
+Motor central de simulación que integra CityModel con StreamServer
+Se ejecuta en un hilo en segundo plano con un bucle de eventos asincrónico
 """
 import asyncio
 import threading
@@ -14,88 +14,88 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 class SimulationEngine(QObject):
     """
-    Unified simulation engine that runs CityModel and StreamServer
-    in a background thread with async event loop
+    Motor de simulación unificado que ejecuta CityModel y StreamServer
+    en un hilo de fondo con un bucle de eventos asincrónico
     """
     
-    # Qt signals for cross-thread communication
-    step_completed = pyqtSignal(int)  # Emits step number
-    state_updated = pyqtSignal(dict)  # Emits full state
+    # Señales de Qt para comunicación entre hilos
+    step_completed = pyqtSignal(int)  # Emite el número de paso
+    state_updated = pyqtSignal(dict)  # Emite el estado completo
     
     def __init__(self, host="localhost", port=8765, init_settings=None):
         """
-        Initialize simulation engine
+        Inicializar el motor de simulación
         
         Args:
-            host: WebSocket host
-            port: WebSocket port  
-            init_settings: Dict with 'grid_size', 'n_households', 'seed', 'max_steps'
+            host: Host del WebSocket
+            port: Puerto del WebSocket
+            init_settings: Diccionario con 'grid_size', 'n_households', 'seed', 'max_steps'
         """
         super().__init__()
         
-        # Create model with initialization settings
+        # Crear el modelo con las configuraciones iniciales
         if init_settings:
             self.model = CityModel(
                 grid_size=init_settings.get('grid_size'),
                 n_households=init_settings.get('n_households'),
                 seed=init_settings.get('seed')
             )
-            print(f"🏗️  Model initialized with grid={init_settings.get('grid_size')}x{init_settings.get('grid_size')}, households={init_settings.get('n_households')}")
+            print(f"Modelo inicializado con grid={init_settings.get('grid_size')}x{init_settings.get('grid_size')}, hogares={init_settings.get('n_households')}")
         else:
             self.model = CityModel()
-            print("🏗️  Model initialized with default settings")
+            print("Modelo inicializado con configuraciones por defecto")
             
         self.server = StreamServer(self.model, host=host, port=port)
         self.running = False
-        self.paused = True  # START PAUSED - don't run automatically
+        self.paused = True  # Comienza en pausa
         self.thread = None
         self.loop = None
-        self.step_delay = 0.1  # seconds between steps
+        self.step_delay = 0.1  # segundos entre pasos
         
     async def run_async(self):
-        """Async simulation loop"""
-        # Start the WebSocket server
+        """Bucle asincrónico de simulación"""
+        # Iniciar el servidor WebSocket
         await self.server.start()
         
-        # Send initial state safely
+        # Enviar estado inicial
         try:
             state = self.server._build_state_message()
             self.state_updated.emit(state)
         except Exception as e:
-            print(f"⚠️  Error building initial state: {e}")
+            print(f"Error construyendo el estado inicial: {e}")
         
         while self.running:
             if not self.paused:
                 try:
-                    # Step the simulation
+                    # Avanzar un paso en la simulación
                     self.model.step_once()
                     
-                    # Broadcast to WebSocket clients
+                    # Enviar actualización a los clientes WebSocket
                     await self.server.broadcast_tick()
                     
-                    # Emit Qt signals for UI update
+                    # Emitir señales Qt para actualizar la interfaz
                     self.step_completed.emit(self.model.step)
                     state = self.server._build_state_message()
                     self.state_updated.emit(state)
                 except Exception as e:
-                    print(f"❌ Error in simulation step: {e}")
+                    print(f"Error en el paso de simulación: {e}")
                     import traceback
                     traceback.print_exc()
             
-            # Small delay to control simulation speed
+            # Pequeña pausa para controlar la velocidad de simulación
             await asyncio.sleep(self.step_delay)
             
-        # Cleanup when stopped
+        # Finalizar cuando se detiene
         await self.server.stop()
         
     def _run_in_thread(self):
-        """Thread target that creates and runs the async event loop"""
+        """Método que crea y ejecuta el bucle de eventos asincrónico en un hilo"""
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.loop.run_until_complete(self.run_async())
         
     def start(self):
-        """Start the simulation engine in a background thread"""
+        """Iniciar el motor de simulación en un hilo en segundo plano"""
         if self.running:
             return
             
@@ -103,36 +103,36 @@ class SimulationEngine(QObject):
         self.paused = False
         self.thread = threading.Thread(target=self._run_in_thread, daemon=True)
         self.thread.start()
-        print("🚀 Simulation engine started")
+        print("Motor de simulación iniciado")
         
     def stop(self):
-        """Stop the simulation engine"""
+        """Detener el motor de simulación"""
         self.running = False
         if self.thread:
             self.thread.join(timeout=2)
         
-        # Save results to CSV and export visualizations when stopping
+        # Guardar resultados al detenerse
         run_dir = self.save_results()
         if run_dir:
             self.export_all_visualizations(run_dir)
-        print("🛑 Simulation engine stopped")
+        print("Motor de simulación detenido")
         
     def pause(self):
-        """Pause the simulation"""
+        """Pausar la simulación"""
         self.paused = True
-        print("⏸️  Simulation paused")
+        print("Simulación en pausa")
         
     def resume(self):
-        """Resume the simulation"""
+        """Reanudar la simulación"""
         self.paused = False
-        print("▶️  Simulation resumed")
+        print("Simulación reanudada")
         
     def set_speed(self, delay: float):
-        """Set simulation speed (delay between steps in seconds)"""
+        """Establecer la velocidad de simulación (retraso entre pasos en segundos)"""
         self.step_delay = max(0.001, delay)
         
     def send_command(self, command: dict):
-        """Send a command to the simulation (thread-safe)"""
+        """Enviar un comando a la simulación (seguro para hilos)"""
         if self.loop and self.running:
             asyncio.run_coroutine_threadsafe(
                 self._process_command(command),
@@ -140,58 +140,54 @@ class SimulationEngine(QObject):
             )
             
     async def _process_command(self, command: dict):
-        """Process command in the async loop"""
+        """Procesar un comando dentro del bucle asincrónico"""
         import json
         await self.server.process_command(
             json.dumps(command),
-            None  # No specific websocket needed for internal commands
+            None
         )
     
     def save_results(self):
-        """Save simulation results to CSV file"""
+        """Guardar los resultados de la simulación en un archivo CSV"""
         try:
-            # Create outputs directory if it doesn't exist
+            # Crear directorio de salida si no existe
             outputs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'run_sim')
             os.makedirs(outputs_dir, exist_ok=True)
             
-            # Create timestamped subdirectory
+            # Crear subdirectorio con marca de tiempo
             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             run_dir = os.path.join(outputs_dir, f"unified-run-{timestamp}")
             os.makedirs(run_dir, exist_ok=True)
             
-            # Define the output file path
+            # Ruta del archivo de salida
             output_file = os.path.join(run_dir, 'results.csv')
             
-            # Check if model has records
+            # Verificar si el modelo tiene registros
             if not self.model.records:
-                print("⚠️  No simulation data to save")
+                print("No hay datos de simulación para guardar")
                 return run_dir
             
-            # Write records to CSV
+            # Escribir registros en CSV
             with open(output_file, 'w', newline='', encoding='utf-8') as f:
-                # Get field names from the first record
                 fieldnames = list(self.model.records[0].keys())
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
-                
-                # Write header and data
                 writer.writeheader()
                 writer.writerows(self.model.records)
             
-            print(f"💾 Results saved to: {output_file}")
-            print(f"📊 Total steps recorded: {len(self.model.records)}")
+            print(f"Resultados guardados en: {output_file}")
+            print(f"Total de pasos registrados: {len(self.model.records)}")
             
             return run_dir
             
         except Exception as e:
-            print(f"❌ Error saving results: {e}")
+            print(f"Error al guardar resultados: {e}")
             import traceback
             traceback.print_exc()
             return None
     
     def export_all_visualizations(self, run_dir=None):
-        """Export all graphs and visualizations to files"""
+        """Exportar todas las gráficas y visualizaciones a archivos"""
         try:
-            # Create run directory if not provided
             if run_dir is None:
                 outputs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'run_sim')
                 os.makedirs(outputs_dir, exist_ok=True)
@@ -199,16 +195,13 @@ class SimulationEngine(QObject):
                 run_dir = os.path.join(outputs_dir, f"unified-run-{timestamp}")
                 os.makedirs(run_dir, exist_ok=True)
             
-            # Import matplotlib for plotting
             import matplotlib.pyplot as plt
             from urban_evolution.analysis import plot_time_series, save_spatial_maps
             
-            # Check if we have data
             if not self.model.records:
-                print("⚠️  No data to export")
+                print("No hay datos para exportar")
                 return run_dir
             
-            # Convert records to DataFrame
             import pandas as pd
             df = pd.DataFrame(self.model.records)
             
@@ -220,48 +213,43 @@ class SimulationEngine(QObject):
             )
             print(f"📈 Time series plots saved")
             
-            # Save spatial maps (current state)
+            # Guardar mapas espaciales del estado actual
             save_spatial_maps(self.model, run_dir, self.model.step)
-            print(f"🗺️  Spatial maps saved")
+            print("Mapas espaciales guardados")
             
-            # Export network graph if available
+            # Exportar el grafo de red si está disponible
             self.export_network_graph(run_dir)
             
-            print(f"✅ All visualizations exported to: {run_dir}")
+            print(f"Todas las visualizaciones exportadas en: {run_dir}")
             return run_dir
             
         except Exception as e:
-            print(f"❌ Error exporting visualizations: {e}")
+            print(f"Error al exportar visualizaciones: {e}")
             import traceback
             traceback.print_exc()
             return run_dir
     
     def export_network_graph(self, run_dir):
-        """Export network graph visualization"""
+        """Exportar visualización del grafo de red"""
         try:
             import matplotlib.pyplot as plt
             import networkx as nx
             
-            # Get the city graph from the model
             if not hasattr(self.model, 'city_graph') or self.model.city_graph is None:
-                print("⚠️  No network graph available to export")
+                print("No hay grafo de red disponible para exportar")
                 return
             
             G = self.model.city_graph
             
-            # Create figure
             fig, ax = plt.subplots(figsize=(12, 12))
             
-            # Get positions (spatial layout based on grid coordinates)
             pos = {}
             for node in G.nodes():
                 i, j = node
                 pos[node] = (i, j)
             
-            # Draw network
             nx.draw_networkx_edges(G, pos, alpha=0.3, ax=ax)
             
-            # Color nodes by some metric if available
             node_colors = []
             for node in G.nodes():
                 if 'population' in G.nodes[node]:
@@ -277,18 +265,17 @@ class SimulationEngine(QObject):
                 ax=ax
             )
             
-            ax.set_title(f"City Network - Step {self.model.step}")
-            ax.set_xlabel("Grid X")
-            ax.set_ylabel("Grid Y")
+            ax.set_title(f"Grafo de la Ciudad - Paso {self.model.step}")
+            ax.set_xlabel("Coordenada X")
+            ax.set_ylabel("Coordenada Y")
             ax.set_aspect('equal')
             
-            # Save figure
             network_file = os.path.join(run_dir, f"network_graph_step{self.model.step}.png")
             plt.tight_layout()
             plt.savefig(network_file, dpi=150, bbox_inches='tight')
             plt.close(fig)
             
-            print(f"🕸️  Network graph saved: {network_file}")
+            print(f"Grafo de red guardado en: {network_file}")
             
         except Exception as e:
-            print(f"⚠️  Could not export network graph: {e}")
+            print(f"No se pudo exportar el grafo de red: {e}")
